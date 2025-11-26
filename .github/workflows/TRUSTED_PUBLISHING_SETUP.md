@@ -6,13 +6,28 @@ Trusted publishing uses OpenID Connect (OIDC) to authenticate GitHub Actions wor
 
 ### 1. Enable Trusted Publishing on npm
 
+**Option A: From Package Settings (if package exists)**
+1. Go to your package page: https://www.npmjs.com/package/homebridge-unifi-pdu
+2. Click **"Settings"** tab
+3. Scroll to **"Publishing access"** section
+4. Click **"Add trusted publisher"**
+5. Select **"GitHub Actions"**
+6. Enter:
+   - **Repository owner:** `alexraddas`
+   - **Repository name:** `homebridge-unifi-pdu`
+   - **Workflow filename:** `.github/workflows/publish.yml`
+7. Click **"Add trusted publisher"**
+
+**Option B: From Account Settings**
 1. Go to: https://www.npmjs.com/settings/YOUR_USERNAME/access-tokens
-2. Click on the **"Automation"** tab (or look for "Trusted Publishing")
-3. Click **"Add GitHub Actions"** or **"Configure Trusted Publishing"**
-4. Select your GitHub organization/user: `alexraddas`
-5. Select repository: `homebridge-unifi-pdu`
-6. Select workflow file: `.github/workflows/publish.yml`
-7. Click **"Save"** or **"Add"**
+2. Click on **"Automation"** tab
+3. Look for **"Trusted Publishing"** section
+4. Click **"Add GitHub Actions"** or **"Configure Trusted Publishing"**
+5. Enter:
+   - **Repository owner:** `alexraddas`
+   - **Repository name:** `homebridge-unifi-pdu`
+   - **Workflow filename:** `.github/workflows/publish.yml`
+6. Click **"Save"** or **"Add"**
 
 ### 2. Verify Workflow Configuration
 
