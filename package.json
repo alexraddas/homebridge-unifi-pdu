@@ -1,6 +1,6 @@
 {
   "name": "homebridge-unifi-pdu",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Homebridge plugin for UniFi PDU outlet control",
   "main": "index.js",
   "scripts": {
