@@ -114,6 +114,22 @@ Homebridge plugin for controlling UniFi PDU outlets.
 - Ensure network connectivity to UniFi controller
 - If using self-signed certificates, set `verifySsl: false`
 
+## Development
+
+### Publishing to npm
+
+This plugin uses GitHub Actions to automatically publish to npm when a release is created.
+
+**Setup:**
+1. Create an npm automation token: https://www.npmjs.com/settings/YOUR_USERNAME/tokens
+2. Add it as a GitHub secret named `NPM_TOKEN`: https://github.com/alexraddas/homebridge-unifi-pdu/settings/secrets/actions
+
+**Publishing:**
+- Create a GitHub release with tag `v1.0.0` (or any version)
+- The workflow will automatically publish to npm
+
+See `.github/workflows/README.md` for more details.
+
 ## License
 
 MIT License - see LICENSE file for details
