@@ -27,15 +27,15 @@ jobs:
     
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           fetch-depth: 0
       
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
-          node-version: '18'
+          node-version: '24'
           registry-url: 'https://registry.npmjs.org'
       
       - name: Extract version from tag (release)
@@ -75,8 +75,6 @@ jobs:
         run: npm ci
       
       - name: Publish to npm
-        run: npm publish --access public
+        uses: JS-DevTools/npm-publish@v4
         # Trusted publishing (OIDC) is used automatically if configured on npm
-        # Fallback: Remove NODE_AUTH_TOKEN env var once trusted publishing works
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        # No token needed if trusted publishing is set up
