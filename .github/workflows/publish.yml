@@ -37,6 +37,8 @@ jobs:
         with:
           node-version: '24'
           registry-url: 'https://registry.npmjs.org'
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
       
       - name: Extract version from tag (release)
         if: github.event_name == 'release'
@@ -76,5 +78,7 @@ jobs:
       
       - name: Publish to npm
         uses: JS-DevTools/npm-publish@v4
-        # Trusted publishing (OIDC) is used automatically if configured on npm
-        # No token needed if trusted publishing is set up
+        with:
+          token: ${{ secrets.NPM_TOKEN }}
+        # If trusted publishing (OIDC) is configured on npm, it will be used automatically
+        # Otherwise, NPM_TOKEN secret will be used
