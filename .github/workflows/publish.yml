@@ -1,6 +1,9 @@
 name: Publish to npm
 
 on:
+  push:
+    branches:
+      - main
   release:
     types: [created]
   workflow_dispatch:
@@ -20,7 +23,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
-      id-token: write  # Required for npm trusted publishing (OIDC)
+      id-token: write
     
     steps:
       - name: Checkout code
@@ -34,7 +37,6 @@ jobs:
         with:
           node-version: '18'
           registry-url: 'https://registry.npmjs.org'
-          # Trusted publishing (OIDC) is used automatically if configured on npm
       
       - name: Extract version from tag (release)
         if: github.event_name == 'release'
@@ -43,6 +45,16 @@ jobs:
           VERSION=${GITHUB_REF#refs/tags/v}
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "Extracted version: $VERSION"
+      
+      - name: Bump version (push to main)
+        if: github.event_name == 'push'
+        run: |
+          npm version patch --no-git-tag-version
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add package.json
+          git commit -m "Bump version to $(node -p "require('./package.json').version") [skip ci]"
+          git push origin main
       
       - name: Bump version (manual trigger)
         if: github.event_name == 'workflow_dispatch'
@@ -64,8 +76,7 @@ jobs:
       
       - name: Publish to npm
         run: npm publish --access public
-        # Trusted publishing (OIDC) is used automatically via setup-node action
-        # If trusted publishing is configured on npm, no token is needed
-        # Fallback: NPM_TOKEN secret can be used until trusted publishing is set up
+        # Trusted publishing (OIDC) is used automatically if configured on npm
+        # Fallback: Remove NODE_AUTH_TOKEN env var once trusted publishing works
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
