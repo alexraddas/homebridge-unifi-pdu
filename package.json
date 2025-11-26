@@ -1,0 +1,32 @@
+{
+  "name": "homebridge-unifi-pdu",
+  "version": "1.0.0",
+  "description": "Homebridge plugin for UniFi PDU outlet control",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "homebridge-plugin",
+    "unifi",
+    "pdu",
+    "power",
+    "outlet"
+  ],
+  "engines": {
+    "node": ">=14.0.0",
+    "homebridge": ">=1.3.0"
+  },
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "axios": "^1.6.0"
+  },
+  "peerDependencies": {
+    "homebridge": ">=1.3.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": ""
+  }
+}

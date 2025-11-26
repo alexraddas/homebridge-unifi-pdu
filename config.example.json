@@ -1,0 +1,24 @@
+{
+  "platforms": [
+    {
+      "platform": "UniFiPDU",
+      "name": "UniFi PDU",
+      "controllerUrl": "https://192.168.1.1",
+      "apiKey": "your_api_key_here",
+      "site": "default",
+      "verifySsl": false,
+      "pdus": [
+        {
+          "mac": "aa:bb:cc:dd:ee:01",
+          "name": "PDU 1",
+          "outletFilter": [1, 2, 5, 10]
+        },
+        {
+          "mac": "aa:bb:cc:dd:ee:02",
+          "name": "PDU 2",
+          "outletFilter": [1, 3, 5]
+        }
+      ]
+    }
+  ]
+}
