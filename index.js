@@ -315,7 +315,7 @@ class UniFiPDUPlatform {
           minValue: 0,
           maxValue: 20,
           minStep: 0.001,
-          perms: [Characteristic.Permissions.READ, Characteristic.Permissions.NOTIFY]
+          perms: [Characteristic.Perms.READ, Characteristic.Perms.NOTIFY]
         })
       );
     }
@@ -331,7 +331,7 @@ class UniFiPDUPlatform {
           minValue: 0,
           maxValue: 250,
           minStep: 0.1,
-          perms: [Characteristic.Permissions.READ, Characteristic.Permissions.NOTIFY]
+          perms: [Characteristic.Perms.READ, Characteristic.Perms.NOTIFY]
         })
       );
     }
@@ -347,7 +347,7 @@ class UniFiPDUPlatform {
           minValue: 0,
           maxValue: 2000,
           minStep: 0.1,
-          perms: [Characteristic.Permissions.READ, Characteristic.Permissions.NOTIFY]
+          perms: [Characteristic.Perms.READ, Characteristic.Perms.NOTIFY]
         })
       );
     }
