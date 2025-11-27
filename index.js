@@ -198,8 +198,18 @@ class UniFiPDUPlatform {
         
         this.api.registerPlatformAccessories('homebridge-unifi-pdu', 'UniFiPDU', [accessory]);
         this.accessories.push(accessory);
+        
+        // Update reachability to ensure HomeKit sees the accessory
+        accessory.updateReachability(true);
       }
     });
+    
+    // Force HomeKit to refresh by updating all accessories
+    this.accessories.forEach(accessory => {
+      accessory.updateReachability(true);
+    });
+    
+    this.log.info(`Registered ${this.accessories.length} accessory(ies) with HomeKit`);
   }
   
   configureAccessory(accessory) {
