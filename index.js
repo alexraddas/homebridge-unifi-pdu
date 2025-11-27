@@ -192,9 +192,10 @@ class UniFiPDUPlatform {
         this.setupOutletService(switchService, outlet.index, outlet.pduMac);
         
         // Add power monitoring for outlets that support it (outlet_caps >= 3)
-        if (outlet.outlet_caps >= 3) {
-          this.setupPowerMonitoring(accessory, outlet.index, outlet.pduMac);
-        }
+        // TEMPORARILY DISABLED TO DEBUG POWER CYCLE ISSUE
+        // if (outlet.outlet_caps >= 3) {
+        //   this.setupPowerMonitoring(accessory, outlet.index, outlet.pduMac);
+        // }
         
         this.api.registerPlatformAccessories('homebridge-unifi-pdu', 'UniFiPDU', [accessory]);
         this.accessories.push(accessory);
@@ -277,6 +278,13 @@ class UniFiPDUPlatform {
     
     this.log.info(`[DEBUG] On characteristic found, attaching handlers for outlet ${outletIndex}`);
     
+    // Verify handlers are attached after setup
+    const verifyHandlers = () => {
+      const getHandlers = onChar.listeners('get');
+      const setHandlers = onChar.listeners('set');
+      this.log.info(`[DEBUG] Outlet ${outletIndex} - After attaching handlers: get=${getHandlers.length}, set=${setHandlers.length}`);
+    };
+    
     onChar
       .on('get', async (callback) => {
         try {
@@ -318,6 +326,9 @@ class UniFiPDUPlatform {
           callback(error);
         }
       });
+    
+    // Verify handlers were attached
+    verifyHandlers();
   }
   
   setupPowerMonitoring(accessory, outletIndex, pduMac) {
