@@ -308,27 +308,36 @@ class UniFiPDUPlatform {
   }
   
   setupPowerMonitoring(accessory, outletIndex, pduMac) {
-    // Remove any old LightSensor services that might have been created for power monitoring
-    const lightSensorService = accessory.getService(Service.LightSensor);
-    if (lightSensorService && lightSensorService.subtype === 'power-monitoring') {
-      this.log.info(`Removing old LightSensor service for outlet ${outletIndex}`);
-      accessory.removeService(lightSensorService);
-    }
-    
-    // Also remove any service with the name "Power Monitoring" that isn't a Switch
-    const services = accessory.services.filter(s => s.displayName === 'Power Monitoring' && s.UUID !== Service.Switch.UUID);
-    services.forEach(service => {
-      this.log.info(`Removing old Power Monitoring service for outlet ${outletIndex}`);
-      accessory.removeService(service);
-    });
-    
-    // Add power monitoring characteristics directly to the Switch service
-    // This avoids creating a separate service that might be misinterpreted
-    const switchService = accessory.getService(Service.Switch);
-    if (!switchService) {
-      this.log.error(`Switch service not found for outlet ${outletIndex}`);
-      return;
-    }
+    try {
+      // Remove any old LightSensor services that might have been created for power monitoring
+      const lightSensorService = accessory.getService(Service.LightSensor);
+      if (lightSensorService && lightSensorService.subtype === 'power-monitoring') {
+        this.log.info(`Removing old LightSensor service for outlet ${outletIndex}`);
+        accessory.removeService(lightSensorService);
+      }
+      
+      // Also remove any service with the name "Power Monitoring" that isn't a Switch
+      const services = accessory.services.filter(s => s.displayName === 'Power Monitoring' && s.UUID !== Service.Switch.UUID);
+      services.forEach(service => {
+        this.log.info(`Removing old Power Monitoring service for outlet ${outletIndex}`);
+        accessory.removeService(service);
+      });
+      
+      // Add power monitoring characteristics directly to the Switch service
+      // This avoids creating a separate service that might be misinterpreted
+      const switchService = accessory.getService(Service.Switch);
+      if (!switchService) {
+        this.log.error(`Switch service not found for outlet ${outletIndex}`);
+        return;
+      }
+      
+      // Make sure we don't interfere with the On characteristic that's already set up
+      // Check if On characteristic exists and has handlers
+      const onChar = switchService.getCharacteristic(Characteristic.On);
+      if (!onChar || !onChar.listeners || onChar.listeners('get').length === 0) {
+        this.log.warn(`On characteristic not properly set up for outlet ${outletIndex}, skipping power monitoring`);
+        return;
+      }
     
     // Add Voltage (Volts) characteristic - Elgato Eve Energy UUID
     // Format: UInt16, value = actual_voltage * 10
@@ -443,5 +452,10 @@ class UniFiPDUPlatform {
     
     // Initial update
     updatePowerStats();
+    } catch (error) {
+      this.log.error(`Failed to setup power monitoring for outlet ${outletIndex}: ${error.message}`);
+      this.log.error(error.stack);
+      // Don't throw - allow the outlet to work without power monitoring
+    }
   }
 }
