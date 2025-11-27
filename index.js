@@ -118,8 +118,8 @@ class UniFiPDUPlatform {
   registerAccessories() {
     // Use module-level Accessory, Characteristic, Service set during plugin initialization
     // These are set in module.exports when the plugin loads
-    if (!Accessory || !Accessory.UUID || typeof Accessory.UUID.generate !== 'function') {
-      this.log.error('Accessory.UUID.generate is not available, retrying...');
+    if (!Accessory) {
+      this.log.error('Accessory is not available, retrying...');
       setTimeout(() => this.registerAccessories(), 1000);
       return;
     }
@@ -130,9 +130,16 @@ class UniFiPDUPlatform {
       return;
     }
     
+    // Use this.api.hap.uuid.generate() for UUID generation (standard Homebridge method)
+    if (!this.api || !this.api.hap || !this.api.hap.uuid || typeof this.api.hap.uuid.generate !== 'function') {
+      this.log.error('UUID generator is not available, retrying...');
+      setTimeout(() => this.registerAccessories(), 1000);
+      return;
+    }
+    
     this.outlets.forEach(outlet => {
       // Include PDU MAC in UUID to ensure uniqueness across multiple PDUs
-      const uuid = Accessory.UUID.generate(`unifi-pdu-${outlet.pduMac}-${outlet.index}`);
+      const uuid = this.api.hap.uuid.generate(`unifi-pdu-${outlet.pduMac}-${outlet.index}`);
       const existingAccessory = this.accessories.find(acc => acc.UUID === uuid);
       
       // Create display name - include PDU name if multiple PDUs
