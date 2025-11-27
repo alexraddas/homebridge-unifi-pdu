@@ -185,7 +185,8 @@ class UniFiPDUPlatform {
         this.configureAccessory(existingAccessory);
       } else {
         this.log.info(`Adding new accessory: ${displayName}`);
-        const accessory = new Accessory(displayName, uuid);
+        // Use api.platformAccessory() instead of new Accessory() for platform accessories
+        const accessory = new this.api.platformAccessory(displayName, uuid);
         
         accessory.addService(Service.Switch, displayName);
         this.setupOutletService(accessory.getService(Service.Switch), outlet.index, outlet.pduMac);
