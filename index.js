@@ -169,12 +169,17 @@ class UniFiPDUPlatform {
     this.log.info('[DEBUG] UUID generator is available, proceeding with accessory registration');
     
     this.log.info(`[DEBUG] Registering ${this.outlets.length} outlet(s)`);
+    const discoveredUUIDs = [];
+    
     this.outlets.forEach((outlet, index) => {
       // Include PDU MAC in UUID to ensure uniqueness across multiple PDUs
       this.log.info(`[DEBUG] Processing outlet ${index + 1}/${this.outlets.length}: PDU ${outlet.pduMac}, index ${outlet.index}`);
       const uuid = this.api.hap.uuid.generate(`unifi-pdu-${outlet.pduMac}-${outlet.index}`);
       this.log.info(`[DEBUG] Generated UUID: ${uuid}`);
-      const existingAccessory = this.accessories.find(acc => acc.UUID === uuid);
+      
+      // See if an accessory with the same uuid has already been registered and restored from
+      // the cached devices we stored in the `configureAccessory` method above
+      const existingAccessory = this.cachedAccessories.get(uuid);
       
       // Create display name - include PDU name if multiple PDUs
       let displayName = outlet.name || `Outlet ${outlet.index}`;
@@ -183,20 +188,55 @@ class UniFiPDUPlatform {
       }
       
       if (existingAccessory) {
-        this.log.info(`Reusing existing accessory: ${displayName}`);
-        this.configureAccessory(existingAccessory);
+        // The accessory already exists - restore it and set up handlers
+        this.log.info(`Restoring existing accessory from cache: ${displayName}`);
+        
+        // Get or create the Switch service
+        let service = existingAccessory.getService(Service.Switch);
+        if (!service) {
+          service = existingAccessory.addService(Service.Switch, displayName);
+        }
+        
+        // Set up the outlet service handlers
+        this.setupOutletService(service, outlet.index, outlet.pduMac);
       } else {
+        // The accessory does not yet exist, so we need to create it
         this.log.info(`Adding new accessory: ${displayName}`);
-        // Use api.platformAccessory() instead of new Accessory() for platform accessories
+        
+        // Create a new accessory
         const accessory = new this.api.platformAccessory(displayName, uuid);
         
-        accessory.addService(Service.Switch, displayName);
-        this.setupOutletService(accessory.getService(Service.Switch), outlet.index, outlet.pduMac);
+        // Store outlet info in context for later reference
+        accessory.context.outlet = {
+          index: outlet.index,
+          pduMac: outlet.pduMac,
+          pduName: outlet.pduName
+        };
         
+        // Add the Switch service
+        const service = accessory.addService(Service.Switch, displayName);
+        this.setupOutletService(service, outlet.index, outlet.pduMac);
+        
+        // Link the accessory to your platform
         this.api.registerPlatformAccessories('homebridge-unifi-pdu', 'UniFiPDU', [accessory]);
-        this.accessories.push(accessory);
+        
+        // Add to cached accessories map
+        this.cachedAccessories.set(uuid, accessory);
       }
+      
+      discoveredUUIDs.push(uuid);
     });
+    
+    // Remove accessories that are no longer present in the config
+    for (const [uuid, accessory] of this.cachedAccessories) {
+      if (!discoveredUUIDs.includes(uuid)) {
+        this.log.info(`Removing existing accessory from cache: ${accessory.displayName}`);
+        this.api.unregisterPlatformAccessories('homebridge-unifi-pdu', 'UniFiPDU', [accessory]);
+        this.cachedAccessories.delete(uuid);
+      }
+    }
+    
+    this.log.info(`Registered ${this.cachedAccessories.size} accessory(ies) with HomeKit`);
   }
   
   configureAccessory(accessory) {
