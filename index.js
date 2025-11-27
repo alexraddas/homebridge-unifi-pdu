@@ -282,8 +282,10 @@ class UniFiPDUPlatform {
         }
       })
       .on('set', async (value, callback) => {
+        this.log.info(`[DEBUG] On characteristic set handler called for outlet ${outletIndex}, value: ${value}`);
         try {
           // Power cycle the outlet
+          this.log.info(`[DEBUG] Calling powerCycleOutlet for outlet ${outletIndex} on PDU ${pduMac}`);
           await this.client.powerCycleOutlet(pduMac, outletIndex);
           this.log.info(`Power cycled outlet ${outletIndex} on PDU ${pduMac}`);
           
@@ -302,6 +304,7 @@ class UniFiPDUPlatform {
           callback(null);
         } catch (error) {
           this.log.error(`Failed to power cycle outlet ${outletIndex} on PDU ${pduMac}: ${error.message}`);
+          this.log.error(`[DEBUG] Power cycle error stack: ${error.stack}`);
           callback(error);
         }
       });
