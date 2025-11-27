@@ -266,8 +266,17 @@ class UniFiPDUPlatform {
   
   setupOutletService(service, outletIndex, pduMac) {
     // Use module-level Characteristic set during plugin initialization
+    this.log.info(`[DEBUG] Setting up outlet service for outlet ${outletIndex} on PDU ${pduMac}`);
     
-    service.getCharacteristic(Characteristic.On)
+    const onChar = service.getCharacteristic(Characteristic.On);
+    if (!onChar) {
+      this.log.error(`[DEBUG] On characteristic not found for outlet ${outletIndex}`);
+      return;
+    }
+    
+    this.log.info(`[DEBUG] On characteristic found, attaching handlers for outlet ${outletIndex}`);
+    
+    onChar
       .on('get', async (callback) => {
         try {
           const outlet = await this.client.getOutlet(pduMac, outletIndex);
@@ -345,12 +354,14 @@ class UniFiPDUPlatform {
       // Check if On characteristic has get/set handlers (it should have been set up by setupOutletService)
       const getHandlers = onChar.listeners('get');
       const setHandlers = onChar.listeners('set');
+      this.log.info(`[DEBUG] Outlet ${outletIndex} - On characteristic handlers: get=${getHandlers.length}, set=${setHandlers.length}`);
+      
       if (getHandlers.length === 0 || setHandlers.length === 0) {
         this.log.warn(`On characteristic handlers not properly set up for outlet ${outletIndex}, skipping power monitoring`);
         return;
       }
       
-      this.log.debug(`Adding power monitoring to outlet ${outletIndex} (On characteristic is properly configured)`);
+      this.log.info(`[DEBUG] Adding power monitoring to outlet ${outletIndex} (On characteristic is properly configured)`);
     
     // Add Voltage (Volts) characteristic - Elgato Eve Energy UUID
     // Format: UInt16, value = actual_voltage * 10
