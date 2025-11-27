@@ -53,7 +53,8 @@ class UniFiPDUPlatform {
     
     // State
     this.outlets = [];
-    this.accessories = [];
+    // Use Map to track cached accessories (like the official template)
+    this.cachedAccessories = new Map();
     
     // Create UniFi PDU client (shared across all PDUs)
     this.client = new UniFiPDUClient({
@@ -67,12 +68,13 @@ class UniFiPDUPlatform {
     
     this.log.info(`Initializing UniFi PDU platform: ${this.name} with ${this.pdus.length} PDU(s)`);
     
-    // Load outlets from all PDUs
-    this.loadOutlets();
-    
-    // Register platform
+    // When this event is fired it means Homebridge has restored all cached accessories from disk.
+    // Dynamic Platform plugins should only register new accessories after this event was fired,
+    // in order to ensure they weren't added to homebridge already.
     this.api.on('didFinishLaunching', () => {
       this.log.info('Homebridge finished launching');
+      // Now discover and register accessories
+      this.loadOutlets();
     });
   }
   
@@ -198,20 +200,13 @@ class UniFiPDUPlatform {
   }
   
   configureAccessory(accessory) {
-    // Called when Homebridge restarts and finds existing accessories
-    // Use module-level Service set during plugin initialization
+    // This function is invoked when homebridge restores cached accessories from disk at startup.
+    // It should be used to store the accessory, NOT set up handlers yet.
+    // Handlers will be set up in loadOutlets() after didFinishLaunching fires.
+    this.log.info(`Loading accessory from cache: ${accessory.displayName}`);
     
-    this.log.info(`Configuring accessory: ${accessory.displayName}`);
-    
-    let service = accessory.getService(Service.Switch);
-    if (!service) {
-      service = accessory.addService(Service.Switch);
-    }
-    
-    const outletInfo = this.extractOutletInfo(accessory);
-    if (outletInfo) {
-      this.setupOutletService(service, outletInfo.outletIndex, outletInfo.pduMac);
-    }
+    // Add the restored accessory to the accessories cache, so we can track if it has already been registered
+    this.cachedAccessories.set(accessory.UUID, accessory);
   }
   
   extractOutletInfo(accessory) {
