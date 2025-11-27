@@ -116,8 +116,19 @@ class UniFiPDUPlatform {
   }
   
   registerAccessories() {
-    const Accessory = this.api.hap.Accessory;
-    const Service = this.api.hap.Service;
+    // Use module-level Accessory, Characteristic, Service set during plugin initialization
+    // These are set in module.exports when the plugin loads
+    if (!Accessory || !Accessory.UUID || typeof Accessory.UUID.generate !== 'function') {
+      this.log.error('Accessory.UUID.generate is not available, retrying...');
+      setTimeout(() => this.registerAccessories(), 1000);
+      return;
+    }
+    
+    if (!Service) {
+      this.log.error('Service is not available, retrying...');
+      setTimeout(() => this.registerAccessories(), 1000);
+      return;
+    }
     
     this.outlets.forEach(outlet => {
       // Include PDU MAC in UUID to ensure uniqueness across multiple PDUs
@@ -148,7 +159,7 @@ class UniFiPDUPlatform {
   
   configureAccessory(accessory) {
     // Called when Homebridge restarts and finds existing accessories
-    const Service = this.api.hap.Service;
+    // Use module-level Service set during plugin initialization
     
     this.log.info(`Configuring accessory: ${accessory.displayName}`);
     
@@ -178,7 +189,7 @@ class UniFiPDUPlatform {
   }
   
   setupOutletService(service, outletIndex, pduMac) {
-    const Characteristic = this.api.hap.Characteristic;
+    // Use module-level Characteristic set during plugin initialization
     
     service.getCharacteristic(Characteristic.On)
       .on('get', async (callback) => {
