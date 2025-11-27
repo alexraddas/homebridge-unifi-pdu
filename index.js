@@ -293,22 +293,20 @@ class UniFiPDUPlatform {
   }
   
   setupPowerMonitoring(accessory, outletIndex, pduMac) {
-    // Add power monitoring service for outlets that support it
-    // Use a custom service name to identify it
-    let powerService = accessory.getService('Power Monitoring');
-    if (!powerService) {
-      // Create a custom service for power monitoring
-      // We'll use a LightSensor service as a base since it has numeric characteristics
-      powerService = accessory.addService(Service.LightSensor, 'Power Monitoring', 'power-monitoring');
-      powerService.setCharacteristic(Characteristic.Name, 'Power Monitoring');
+    // Add power monitoring characteristics directly to the Switch service
+    // This avoids creating a separate service that might be misinterpreted
+    const switchService = accessory.getService(Service.Switch);
+    if (!switchService) {
+      this.log.error(`Switch service not found for outlet ${outletIndex}`);
+      return;
     }
     
-    // Add Current (Amps) characteristic
+    // Add Current (Amps) characteristic to the Switch service
     // Using custom UUIDs for power monitoring characteristics
     const CurrentUUID = 'E863F126-079E-48FF-8F27-9C1195C4E5B6'; // Custom UUID for Current
-    let currentChar = powerService.getCharacteristic(CurrentUUID);
+    let currentChar = switchService.getCharacteristic(CurrentUUID);
     if (!currentChar) {
-      currentChar = powerService.addCharacteristic(
+      currentChar = switchService.addCharacteristic(
         new Characteristic('Current', CurrentUUID, {
           format: Characteristic.Formats.FLOAT,
           unit: 'A',
@@ -320,11 +318,11 @@ class UniFiPDUPlatform {
       );
     }
     
-    // Add Voltage (Volts) characteristic
+    // Add Voltage (Volts) characteristic to the Switch service
     const VoltageUUID = 'E863F10D-079E-48FF-8F27-9C1195C4E5B6'; // Custom UUID for Voltage
-    let voltageChar = powerService.getCharacteristic(VoltageUUID);
+    let voltageChar = switchService.getCharacteristic(VoltageUUID);
     if (!voltageChar) {
-      voltageChar = powerService.addCharacteristic(
+      voltageChar = switchService.addCharacteristic(
         new Characteristic('Voltage', VoltageUUID, {
           format: Characteristic.Formats.FLOAT,
           unit: 'V',
@@ -336,11 +334,11 @@ class UniFiPDUPlatform {
       );
     }
     
-    // Add Power (Watts) characteristic
+    // Add Power (Watts) characteristic to the Switch service
     const PowerUUID = 'E863F10C-079E-48FF-8F27-9C1195C4E5B6'; // Custom UUID for Power (Watts)
-    let powerChar = powerService.getCharacteristic(PowerUUID);
+    let powerChar = switchService.getCharacteristic(PowerUUID);
     if (!powerChar) {
-      powerChar = powerService.addCharacteristic(
+      powerChar = switchService.addCharacteristic(
         new Characteristic('Power', PowerUUID, {
           format: Characteristic.Formats.FLOAT,
           unit: 'W',
