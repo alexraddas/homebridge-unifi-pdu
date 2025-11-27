@@ -330,85 +330,94 @@ class UniFiPDUPlatform {
       return;
     }
     
-    // Add Current (Amps) characteristic to the Switch service
-    // Using custom UUIDs for power monitoring characteristics
-    const CurrentUUID = 'E863F126-079E-48FF-8F27-9C1195C4E5B6'; // Custom UUID for Current
-    let currentChar = switchService.getCharacteristic(CurrentUUID);
-    if (!currentChar) {
-      currentChar = switchService.addCharacteristic(
-        new Characteristic('Current', CurrentUUID, {
-          format: Characteristic.Formats.FLOAT,
-          unit: 'A',
-          minValue: 0,
-          maxValue: 20,
-          minStep: 0.001,
-          perms: [Characteristic.Perms.READ, Characteristic.Perms.NOTIFY]
-        })
-      );
-    }
-    
-    // Add Voltage (Volts) characteristic to the Switch service
-    const VoltageUUID = 'E863F10D-079E-48FF-8F27-9C1195C4E5B6'; // Custom UUID for Voltage
+    // Add Voltage (Volts) characteristic - Elgato Eve Energy UUID
+    // Format: UInt16, value = actual_voltage * 10
+    const VoltageUUID = 'E863F10A-079E-48FF-8F27-9C2605A29F52'; // Elgato Eve Energy Volt UUID
     let voltageChar = switchService.getCharacteristic(VoltageUUID);
     if (!voltageChar) {
       voltageChar = switchService.addCharacteristic(
-        new Characteristic('Voltage', VoltageUUID, {
-          format: Characteristic.Formats.FLOAT,
+        new Characteristic('Volt', VoltageUUID, {
+          format: Characteristic.Formats.UINT16,
           unit: 'V',
           minValue: 0,
-          maxValue: 250,
-          minStep: 0.1,
+          maxValue: 2500, // 250V * 10
+          minStep: 1,
           perms: [Characteristic.Perms.READ, Characteristic.Perms.NOTIFY]
         })
       );
     }
     
-    // Add Power (Watts) characteristic to the Switch service
-    const PowerUUID = 'E863F10C-079E-48FF-8F27-9C1195C4E5B6'; // Custom UUID for Power (Watts)
+    // Add Current (Amps) characteristic - Elgato Eve Energy UUID
+    // Format: UInt16, value = actual_current * 100
+    const CurrentUUID = 'E863F126-079E-48FF-8F27-9C2605A29F52'; // Elgato Eve Energy Ampere UUID
+    let currentChar = switchService.getCharacteristic(CurrentUUID);
+    if (!currentChar) {
+      currentChar = switchService.addCharacteristic(
+        new Characteristic('Ampere', CurrentUUID, {
+          format: Characteristic.Formats.UINT16,
+          unit: 'A',
+          minValue: 0,
+          maxValue: 2000, // 20A * 100
+          minStep: 1,
+          perms: [Characteristic.Perms.READ, Characteristic.Perms.NOTIFY]
+        })
+      );
+    }
+    
+    // Add Power (Watts) characteristic - Elgato Eve Energy UUID
+    // Format: UInt16, value = actual_power * 10
+    const PowerUUID = 'E863F10D-079E-48FF-8F27-9C2605A29F52'; // Elgato Eve Energy Watt UUID
     let powerChar = switchService.getCharacteristic(PowerUUID);
     if (!powerChar) {
       powerChar = switchService.addCharacteristic(
-        new Characteristic('Power', PowerUUID, {
-          format: Characteristic.Formats.FLOAT,
+        new Characteristic('Watt', PowerUUID, {
+          format: Characteristic.Formats.UINT16,
           unit: 'W',
           minValue: 0,
-          maxValue: 2000,
-          minStep: 0.1,
+          maxValue: 20000, // 2000W * 10
+          minStep: 1,
           perms: [Characteristic.Perms.READ, Characteristic.Perms.NOTIFY]
         })
       );
     }
     
     // Setup get handlers for all power characteristics
+    // Convert values according to Elgato Eve Energy format:
+    // Voltage: actual_voltage * 10 (UInt16)
+    // Current: actual_current * 100 (UInt16)
+    // Power: actual_power * 10 (UInt16)
     const updatePowerStats = async () => {
       try {
         const powerStats = await this.client.getOutletPowerStats(pduMac, outletIndex);
         if (powerStats) {
-          currentChar.updateValue(powerStats.current);
-          voltageChar.updateValue(powerStats.voltage);
-          powerChar.updateValue(powerStats.power);
+          // Convert to Elgato Eve format
+          voltageChar.updateValue(Math.round(powerStats.voltage * 10));
+          currentChar.updateValue(Math.round(powerStats.current * 100));
+          powerChar.updateValue(Math.round(powerStats.power * 10));
         }
       } catch (error) {
         this.log.error(`Failed to update power stats for outlet ${outletIndex} on PDU ${pduMac}: ${error.message}`);
       }
     };
     
-    currentChar.on('get', async (callback) => {
+    voltageChar.on('get', async (callback) => {
       try {
         const powerStats = await this.client.getOutletPowerStats(pduMac, outletIndex);
-        callback(null, powerStats ? powerStats.current : 0);
+        // Convert voltage to Elgato Eve format: actual_voltage * 10
+        callback(null, powerStats ? Math.round(powerStats.voltage * 10) : 0);
       } catch (error) {
-        this.log.error(`Failed to get current for outlet ${outletIndex}: ${error.message}`);
+        this.log.error(`Failed to get voltage for outlet ${outletIndex}: ${error.message}`);
         callback(error);
       }
     });
     
-    voltageChar.on('get', async (callback) => {
+    currentChar.on('get', async (callback) => {
       try {
         const powerStats = await this.client.getOutletPowerStats(pduMac, outletIndex);
-        callback(null, powerStats ? powerStats.voltage : 0);
+        // Convert current to Elgato Eve format: actual_current * 100
+        callback(null, powerStats ? Math.round(powerStats.current * 100) : 0);
       } catch (error) {
-        this.log.error(`Failed to get voltage for outlet ${outletIndex}: ${error.message}`);
+        this.log.error(`Failed to get current for outlet ${outletIndex}: ${error.message}`);
         callback(error);
       }
     });
@@ -416,7 +425,8 @@ class UniFiPDUPlatform {
     powerChar.on('get', async (callback) => {
       try {
         const powerStats = await this.client.getOutletPowerStats(pduMac, outletIndex);
-        callback(null, powerStats ? powerStats.power : 0);
+        // Convert power to Elgato Eve format: actual_power * 10
+        callback(null, powerStats ? Math.round(powerStats.power * 10) : 0);
       } catch (error) {
         this.log.error(`Failed to get power for outlet ${outletIndex}: ${error.message}`);
         callback(error);
