@@ -217,21 +217,26 @@ class UniFiPDUPlatform {
     if (outletInfo) {
       this.setupOutletService(service, outletInfo.outletIndex, outletInfo.pduMac);
       
-      // Check if outlet supports power monitoring and add/update power service
-      this.client.outletSupportsPowerMonitoring(outletInfo.pduMac, outletInfo.outletIndex)
-        .then(supportsPower => {
-          if (supportsPower) {
-            let powerService = accessory.getService('Power Monitoring');
-            if (!powerService) {
-              powerService = accessory.addService(Service.LightSensor, 'Power Monitoring', 'power-monitoring');
-              powerService.setCharacteristic(Characteristic.Name, 'Power Monitoring');
+      // Check if outlet supports power monitoring and add power characteristics
+      // Find the outlet in our loaded outlets to check outlet_caps
+      const outlet = this.outlets.find(o => 
+        o.index === outletInfo.outletIndex && o.pduMac === outletInfo.pduMac
+      );
+      
+      if (outlet && outlet.outlet_caps >= 3) {
+        this.setupPowerMonitoring(accessory, outletInfo.outletIndex, outletInfo.pduMac);
+      } else {
+        // Try async check as fallback
+        this.client.outletSupportsPowerMonitoring(outletInfo.pduMac, outletInfo.outletIndex)
+          .then(supportsPower => {
+            if (supportsPower) {
+              this.setupPowerMonitoring(accessory, outletInfo.outletIndex, outletInfo.pduMac);
             }
-            this.setupPowerMonitoring(accessory, outletInfo.outletIndex, outletInfo.pduMac);
-          }
-        })
-        .catch(error => {
-          this.log.error(`Failed to check power monitoring support: ${error.message}`);
-        });
+          })
+          .catch(error => {
+            // Silently fail - outlet might not support power monitoring
+          });
+      }
     }
   }
   
