@@ -332,12 +332,22 @@ class UniFiPDUPlatform {
       }
       
       // Make sure we don't interfere with the On characteristic that's already set up
-      // Check if On characteristic exists and has handlers
+      // Verify On characteristic exists and has handlers before adding power characteristics
       const onChar = switchService.getCharacteristic(Characteristic.On);
-      if (!onChar || !onChar.listeners || onChar.listeners('get').length === 0) {
-        this.log.warn(`On characteristic not properly set up for outlet ${outletIndex}, skipping power monitoring`);
+      if (!onChar) {
+        this.log.warn(`On characteristic not found for outlet ${outletIndex}, skipping power monitoring`);
         return;
       }
+      
+      // Check if On characteristic has get/set handlers (it should have been set up by setupOutletService)
+      const getHandlers = onChar.listeners('get');
+      const setHandlers = onChar.listeners('set');
+      if (getHandlers.length === 0 || setHandlers.length === 0) {
+        this.log.warn(`On characteristic handlers not properly set up for outlet ${outletIndex}, skipping power monitoring`);
+        return;
+      }
+      
+      this.log.debug(`Adding power monitoring to outlet ${outletIndex} (On characteristic is properly configured)`);
     
     // Add Voltage (Volts) characteristic - Elgato Eve Energy UUID
     // Format: UInt16, value = actual_voltage * 10
