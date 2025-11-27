@@ -192,10 +192,13 @@ class UniFiPDUPlatform {
         this.setupOutletService(switchService, outlet.index, outlet.pduMac);
         
         // Add power monitoring for outlets that support it (outlet_caps >= 3)
-        // TEMPORARILY DISABLED TO DEBUG POWER CYCLE ISSUE
-        // if (outlet.outlet_caps >= 3) {
-        //   this.setupPowerMonitoring(accessory, outlet.index, outlet.pduMac);
-        // }
+        // Set up power monitoring AFTER registering the accessory to avoid interference
+        if (outlet.outlet_caps >= 3) {
+          // Use setTimeout to ensure On characteristic handlers are fully set up first
+          setTimeout(() => {
+            this.setupPowerMonitoring(accessory, outlet.index, outlet.pduMac);
+          }, 100);
+        }
         
         this.api.registerPlatformAccessories('homebridge-unifi-pdu', 'UniFiPDU', [accessory]);
         this.accessories.push(accessory);
@@ -234,21 +237,26 @@ class UniFiPDUPlatform {
         o.index === outletInfo.outletIndex && o.pduMac === outletInfo.pduMac
       );
       
-      // TEMPORARILY DISABLED TO DEBUG POWER CYCLE ISSUE
-      // if (outlet && outlet.outlet_caps >= 3) {
-      //   this.setupPowerMonitoring(accessory, outletInfo.outletIndex, outletInfo.pduMac);
-      // } else {
-      //   // Try async check as fallback
-      //   this.client.outletSupportsPowerMonitoring(outletInfo.pduMac, outletInfo.outletIndex)
-      //     .then(supportsPower => {
-      //       if (supportsPower) {
-      //         this.setupPowerMonitoring(accessory, outletInfo.outletIndex, outletInfo.pduMac);
-      //       }
-      //     })
-      //     .catch(error => {
-      //       // Silently fail - outlet might not support power monitoring
-      //     });
-      // }
+      // Add power monitoring for existing accessories that support it
+      if (outlet && outlet.outlet_caps >= 3) {
+        // Use setTimeout to ensure On characteristic handlers are fully set up first
+        setTimeout(() => {
+          this.setupPowerMonitoring(accessory, outletInfo.outletIndex, outletInfo.pduMac);
+        }, 100);
+      } else {
+        // Try async check as fallback
+        this.client.outletSupportsPowerMonitoring(outletInfo.pduMac, outletInfo.outletIndex)
+          .then(supportsPower => {
+            if (supportsPower) {
+              setTimeout(() => {
+                this.setupPowerMonitoring(accessory, outletInfo.outletIndex, outletInfo.pduMac);
+              }, 100);
+            }
+          })
+          .catch(error => {
+            // Silently fail - outlet might not support power monitoring
+          });
+      }
     }
   }
   
