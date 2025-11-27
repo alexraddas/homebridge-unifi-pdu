@@ -206,6 +206,12 @@ class UniFiPDUPlatform {
         // Create a new accessory
         const accessory = new this.api.platformAccessory(displayName, uuid);
         
+        // Set accessory information (required for HomeKit)
+        accessory.getService(Service.AccessoryInformation)
+          .setCharacteristic(Characteristic.Manufacturer, 'Ubiquiti')
+          .setCharacteristic(Characteristic.Model, 'UniFi PDU')
+          .setCharacteristic(Characteristic.SerialNumber, `${outlet.pduMac}-${outlet.index}`);
+        
         // Store outlet info in context for later reference
         accessory.context.outlet = {
           index: outlet.index,
@@ -219,6 +225,9 @@ class UniFiPDUPlatform {
         
         // Link the accessory to your platform
         this.api.registerPlatformAccessories('homebridge-unifi-pdu', 'UniFiPDU', [accessory]);
+        
+        // Update reachability to ensure HomeKit sees the accessory
+        accessory.updateReachability(true);
         
         // Add to cached accessories map
         this.cachedAccessories.set(uuid, accessory);
