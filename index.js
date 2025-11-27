@@ -188,8 +188,13 @@ class UniFiPDUPlatform {
         // Use api.platformAccessory() instead of new Accessory() for platform accessories
         const accessory = new this.api.platformAccessory(displayName, uuid);
         
-        accessory.addService(Service.Switch, displayName);
-        this.setupOutletService(accessory.getService(Service.Switch), outlet.index, outlet.pduMac);
+        const switchService = accessory.addService(Service.Switch, displayName);
+        this.setupOutletService(switchService, outlet.index, outlet.pduMac);
+        
+        // Add power monitoring for outlets that support it (outlet_caps >= 3)
+        if (outlet.outlet_caps >= 3) {
+          this.setupPowerMonitoring(accessory, outlet.index, outlet.pduMac);
+        }
         
         this.api.registerPlatformAccessories('homebridge-unifi-pdu', 'UniFiPDU', [accessory]);
         this.accessories.push(accessory);
@@ -211,6 +216,22 @@ class UniFiPDUPlatform {
     const outletInfo = this.extractOutletInfo(accessory);
     if (outletInfo) {
       this.setupOutletService(service, outletInfo.outletIndex, outletInfo.pduMac);
+      
+      // Check if outlet supports power monitoring and add/update power service
+      this.client.outletSupportsPowerMonitoring(outletInfo.pduMac, outletInfo.outletIndex)
+        .then(supportsPower => {
+          if (supportsPower) {
+            let powerService = accessory.getService('Power Monitoring');
+            if (!powerService) {
+              powerService = accessory.addService(Service.LightSensor, 'Power Monitoring', 'power-monitoring');
+              powerService.setCharacteristic(Characteristic.Name, 'Power Monitoring');
+            }
+            this.setupPowerMonitoring(accessory, outletInfo.outletIndex, outletInfo.pduMac);
+          }
+        })
+        .catch(error => {
+          this.log.error(`Failed to check power monitoring support: ${error.message}`);
+        });
     }
   }
   
@@ -269,5 +290,121 @@ class UniFiPDUPlatform {
           callback(error);
         }
       });
+  }
+  
+  setupPowerMonitoring(accessory, outletIndex, pduMac) {
+    // Add power monitoring service for outlets that support it
+    // Use a custom service name to identify it
+    let powerService = accessory.getService('Power Monitoring');
+    if (!powerService) {
+      // Create a custom service for power monitoring
+      // We'll use a LightSensor service as a base since it has numeric characteristics
+      powerService = accessory.addService(Service.LightSensor, 'Power Monitoring', 'power-monitoring');
+      powerService.setCharacteristic(Characteristic.Name, 'Power Monitoring');
+    }
+    
+    // Add Current (Amps) characteristic
+    // Using custom UUIDs for power monitoring characteristics
+    const CurrentUUID = 'E863F126-079E-48FF-8F27-9C1195C4E5B6'; // Custom UUID for Current
+    let currentChar = powerService.getCharacteristic(CurrentUUID);
+    if (!currentChar) {
+      currentChar = powerService.addCharacteristic(
+        new Characteristic('Current', CurrentUUID, {
+          format: Characteristic.Formats.FLOAT,
+          unit: 'A',
+          minValue: 0,
+          maxValue: 20,
+          minStep: 0.001,
+          perms: [Characteristic.Permissions.READ, Characteristic.Permissions.NOTIFY]
+        })
+      );
+    }
+    
+    // Add Voltage (Volts) characteristic
+    const VoltageUUID = 'E863F10D-079E-48FF-8F27-9C1195C4E5B6'; // Custom UUID for Voltage
+    let voltageChar = powerService.getCharacteristic(VoltageUUID);
+    if (!voltageChar) {
+      voltageChar = powerService.addCharacteristic(
+        new Characteristic('Voltage', VoltageUUID, {
+          format: Characteristic.Formats.FLOAT,
+          unit: 'V',
+          minValue: 0,
+          maxValue: 250,
+          minStep: 0.1,
+          perms: [Characteristic.Permissions.READ, Characteristic.Permissions.NOTIFY]
+        })
+      );
+    }
+    
+    // Add Power (Watts) characteristic
+    const PowerUUID = 'E863F10C-079E-48FF-8F27-9C1195C4E5B6'; // Custom UUID for Power (Watts)
+    let powerChar = powerService.getCharacteristic(PowerUUID);
+    if (!powerChar) {
+      powerChar = powerService.addCharacteristic(
+        new Characteristic('Power', PowerUUID, {
+          format: Characteristic.Formats.FLOAT,
+          unit: 'W',
+          minValue: 0,
+          maxValue: 2000,
+          minStep: 0.1,
+          perms: [Characteristic.Permissions.READ, Characteristic.Permissions.NOTIFY]
+        })
+      );
+    }
+    
+    // Setup get handlers for all power characteristics
+    const updatePowerStats = async () => {
+      try {
+        const powerStats = await this.client.getOutletPowerStats(pduMac, outletIndex);
+        if (powerStats) {
+          currentChar.updateValue(powerStats.current);
+          voltageChar.updateValue(powerStats.voltage);
+          powerChar.updateValue(powerStats.power);
+        }
+      } catch (error) {
+        this.log.error(`Failed to update power stats for outlet ${outletIndex} on PDU ${pduMac}: ${error.message}`);
+      }
+    };
+    
+    currentChar.on('get', async (callback) => {
+      try {
+        const powerStats = await this.client.getOutletPowerStats(pduMac, outletIndex);
+        callback(null, powerStats ? powerStats.current : 0);
+      } catch (error) {
+        this.log.error(`Failed to get current for outlet ${outletIndex}: ${error.message}`);
+        callback(error);
+      }
+    });
+    
+    voltageChar.on('get', async (callback) => {
+      try {
+        const powerStats = await this.client.getOutletPowerStats(pduMac, outletIndex);
+        callback(null, powerStats ? powerStats.voltage : 0);
+      } catch (error) {
+        this.log.error(`Failed to get voltage for outlet ${outletIndex}: ${error.message}`);
+        callback(error);
+      }
+    });
+    
+    powerChar.on('get', async (callback) => {
+      try {
+        const powerStats = await this.client.getOutletPowerStats(pduMac, outletIndex);
+        callback(null, powerStats ? powerStats.power : 0);
+      } catch (error) {
+        this.log.error(`Failed to get power for outlet ${outletIndex}: ${error.message}`);
+        callback(error);
+      }
+    });
+    
+    // Update power stats periodically (every 30 seconds)
+    const updateInterval = setInterval(updatePowerStats, 30000);
+    
+    // Store interval ID on accessory for cleanup
+    if (!accessory._powerUpdateInterval) {
+      accessory._powerUpdateInterval = updateInterval;
+    }
+    
+    // Initial update
+    updatePowerStats();
   }
 }

@@ -15,3 +15,6 @@ yarn.lock
 # Build artifacts
 *.tgz
 
+# Test scripts with credentials
+test-outlet-stats.js
+
