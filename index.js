@@ -116,30 +116,62 @@ class UniFiPDUPlatform {
   }
   
   registerAccessories() {
+    this.log.info('[DEBUG] registerAccessories() called');
+    this.log.info(`[DEBUG] Module-level Accessory: ${!!Accessory}, Service: ${!!Service}, Characteristic: ${!!Characteristic}`);
+    this.log.info(`[DEBUG] this.api: ${!!this.api}, this.api.hap: ${!!this.api.hap}`);
+    
     // Use module-level Accessory, Characteristic, Service set during plugin initialization
     // These are set in module.exports when the plugin loads
     if (!Accessory) {
-      this.log.error('Accessory is not available, retrying...');
+      this.log.error('[DEBUG] Accessory is not available, retrying...');
       setTimeout(() => this.registerAccessories(), 1000);
       return;
     }
     
     if (!Service) {
-      this.log.error('Service is not available, retrying...');
+      this.log.error('[DEBUG] Service is not available, retrying...');
       setTimeout(() => this.registerAccessories(), 1000);
       return;
     }
     
     // Use this.api.hap.uuid.generate() for UUID generation (standard Homebridge method)
-    if (!this.api || !this.api.hap || !this.api.hap.uuid || typeof this.api.hap.uuid.generate !== 'function') {
-      this.log.error('UUID generator is not available, retrying...');
+    if (!this.api) {
+      this.log.error('[DEBUG] this.api is undefined');
       setTimeout(() => this.registerAccessories(), 1000);
       return;
     }
     
-    this.outlets.forEach(outlet => {
+    if (!this.api.hap) {
+      this.log.error('[DEBUG] this.api.hap is undefined');
+      setTimeout(() => this.registerAccessories(), 1000);
+      return;
+    }
+    
+    this.log.info(`[DEBUG] this.api.hap keys: ${Object.keys(this.api.hap || {}).join(', ')}`);
+    this.log.info(`[DEBUG] this.api.hap.uuid: ${!!this.api.hap.uuid}`);
+    
+    if (this.api.hap.uuid) {
+      this.log.info(`[DEBUG] this.api.hap.uuid type: ${typeof this.api.hap.uuid}`);
+      this.log.info(`[DEBUG] this.api.hap.uuid keys: ${Object.keys(this.api.hap.uuid || {}).join(', ')}`);
+      this.log.info(`[DEBUG] this.api.hap.uuid.generate: ${typeof this.api.hap.uuid.generate}`);
+    }
+    
+    if (!this.api.hap.uuid || typeof this.api.hap.uuid.generate !== 'function') {
+      this.log.error('[DEBUG] UUID generator is not available');
+      this.log.error(`[DEBUG]   this.api.hap.uuid exists: ${!!this.api.hap.uuid}`);
+      this.log.error(`[DEBUG]   this.api.hap.uuid.generate type: ${typeof (this.api.hap.uuid && this.api.hap.uuid.generate)}`);
+      setTimeout(() => this.registerAccessories(), 1000);
+      return;
+    }
+    
+    this.log.info('[DEBUG] UUID generator is available, proceeding with accessory registration');
+    
+    this.log.info(`[DEBUG] Registering ${this.outlets.length} outlet(s)`);
+    this.outlets.forEach((outlet, index) => {
       // Include PDU MAC in UUID to ensure uniqueness across multiple PDUs
+      this.log.info(`[DEBUG] Processing outlet ${index + 1}/${this.outlets.length}: PDU ${outlet.pduMac}, index ${outlet.index}`);
       const uuid = this.api.hap.uuid.generate(`unifi-pdu-${outlet.pduMac}-${outlet.index}`);
+      this.log.info(`[DEBUG] Generated UUID: ${uuid}`);
       const existingAccessory = this.accessories.find(acc => acc.UUID === uuid);
       
       // Create display name - include PDU name if multiple PDUs
