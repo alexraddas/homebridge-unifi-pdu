@@ -298,6 +298,20 @@ class UniFiPDUPlatform {
   }
   
   setupPowerMonitoring(accessory, outletIndex, pduMac) {
+    // Remove any old LightSensor services that might have been created for power monitoring
+    const lightSensorService = accessory.getService(Service.LightSensor);
+    if (lightSensorService && lightSensorService.subtype === 'power-monitoring') {
+      this.log.info(`Removing old LightSensor service for outlet ${outletIndex}`);
+      accessory.removeService(lightSensorService);
+    }
+    
+    // Also remove any service with the name "Power Monitoring" that isn't a Switch
+    const services = accessory.services.filter(s => s.displayName === 'Power Monitoring' && s.UUID !== Service.Switch.UUID);
+    services.forEach(service => {
+      this.log.info(`Removing old Power Monitoring service for outlet ${outletIndex}`);
+      accessory.removeService(service);
+    });
+    
     // Add power monitoring characteristics directly to the Switch service
     // This avoids creating a separate service that might be misinterpreted
     const switchService = accessory.getService(Service.Switch);
