@@ -233,20 +233,21 @@ class UniFiPDUPlatform {
         o.index === outletInfo.outletIndex && o.pduMac === outletInfo.pduMac
       );
       
-      if (outlet && outlet.outlet_caps >= 3) {
-        this.setupPowerMonitoring(accessory, outletInfo.outletIndex, outletInfo.pduMac);
-      } else {
-        // Try async check as fallback
-        this.client.outletSupportsPowerMonitoring(outletInfo.pduMac, outletInfo.outletIndex)
-          .then(supportsPower => {
-            if (supportsPower) {
-              this.setupPowerMonitoring(accessory, outletInfo.outletIndex, outletInfo.pduMac);
-            }
-          })
-          .catch(error => {
-            // Silently fail - outlet might not support power monitoring
-          });
-      }
+      // TEMPORARILY DISABLED TO DEBUG POWER CYCLE ISSUE
+      // if (outlet && outlet.outlet_caps >= 3) {
+      //   this.setupPowerMonitoring(accessory, outletInfo.outletIndex, outletInfo.pduMac);
+      // } else {
+      //   // Try async check as fallback
+      //   this.client.outletSupportsPowerMonitoring(outletInfo.pduMac, outletInfo.outletIndex)
+      //     .then(supportsPower => {
+      //       if (supportsPower) {
+      //         this.setupPowerMonitoring(accessory, outletInfo.outletIndex, outletInfo.pduMac);
+      //       }
+      //     })
+      //     .catch(error => {
+      //       // Silently fail - outlet might not support power monitoring
+      //     });
+      // }
     }
   }
   
