@@ -116,6 +116,9 @@ class UniFiPDUPlatform {
   }
   
   registerAccessories() {
+    const Accessory = this.api.hap.Accessory;
+    const Service = this.api.hap.Service;
+    
     this.outlets.forEach(outlet => {
       // Include PDU MAC in UUID to ensure uniqueness across multiple PDUs
       const uuid = Accessory.UUID.generate(`unifi-pdu-${outlet.pduMac}-${outlet.index}`);
@@ -145,6 +148,8 @@ class UniFiPDUPlatform {
   
   configureAccessory(accessory) {
     // Called when Homebridge restarts and finds existing accessories
+    const Service = this.api.hap.Service;
+    
     this.log.info(`Configuring accessory: ${accessory.displayName}`);
     
     let service = accessory.getService(Service.Switch);
@@ -173,6 +178,8 @@ class UniFiPDUPlatform {
   }
   
   setupOutletService(service, outletIndex, pduMac) {
+    const Characteristic = this.api.hap.Characteristic;
+    
     service.getCharacteristic(Characteristic.On)
       .on('get', async (callback) => {
         try {
