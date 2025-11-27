@@ -188,32 +188,13 @@ class UniFiPDUPlatform {
         // Use api.platformAccessory() instead of new Accessory() for platform accessories
         const accessory = new this.api.platformAccessory(displayName, uuid);
         
-        const switchService = accessory.addService(Service.Switch, displayName);
-        this.setupOutletService(switchService, outlet.index, outlet.pduMac);
-        
-        // Add power monitoring for outlets that support it (outlet_caps >= 3)
-        // Set up power monitoring AFTER registering the accessory to avoid interference
-        if (outlet.outlet_caps >= 3) {
-          // Use setTimeout to ensure On characteristic handlers are fully set up first
-          setTimeout(() => {
-            this.setupPowerMonitoring(accessory, outlet.index, outlet.pduMac);
-          }, 100);
-        }
+        accessory.addService(Service.Switch, displayName);
+        this.setupOutletService(accessory.getService(Service.Switch), outlet.index, outlet.pduMac);
         
         this.api.registerPlatformAccessories('homebridge-unifi-pdu', 'UniFiPDU', [accessory]);
         this.accessories.push(accessory);
-        
-        // Update reachability to ensure HomeKit sees the accessory
-        accessory.updateReachability(true);
       }
     });
-    
-    // Force HomeKit to refresh by updating all accessories
-    this.accessories.forEach(accessory => {
-      accessory.updateReachability(true);
-    });
-    
-    this.log.info(`Registered ${this.accessories.length} accessory(ies) with HomeKit`);
   }
   
   configureAccessory(accessory) {
@@ -230,33 +211,6 @@ class UniFiPDUPlatform {
     const outletInfo = this.extractOutletInfo(accessory);
     if (outletInfo) {
       this.setupOutletService(service, outletInfo.outletIndex, outletInfo.pduMac);
-      
-      // Check if outlet supports power monitoring and add power characteristics
-      // Find the outlet in our loaded outlets to check outlet_caps
-      const outlet = this.outlets.find(o => 
-        o.index === outletInfo.outletIndex && o.pduMac === outletInfo.pduMac
-      );
-      
-      // Add power monitoring for existing accessories that support it
-      if (outlet && outlet.outlet_caps >= 3) {
-        // Use setTimeout to ensure On characteristic handlers are fully set up first
-        setTimeout(() => {
-          this.setupPowerMonitoring(accessory, outletInfo.outletIndex, outletInfo.pduMac);
-        }, 100);
-      } else {
-        // Try async check as fallback
-        this.client.outletSupportsPowerMonitoring(outletInfo.pduMac, outletInfo.outletIndex)
-          .then(supportsPower => {
-            if (supportsPower) {
-              setTimeout(() => {
-                this.setupPowerMonitoring(accessory, outletInfo.outletIndex, outletInfo.pduMac);
-              }, 100);
-            }
-          })
-          .catch(error => {
-            // Silently fail - outlet might not support power monitoring
-          });
-      }
     }
   }
   
@@ -276,24 +230,8 @@ class UniFiPDUPlatform {
   
   setupOutletService(service, outletIndex, pduMac) {
     // Use module-level Characteristic set during plugin initialization
-    this.log.info(`[DEBUG] Setting up outlet service for outlet ${outletIndex} on PDU ${pduMac}`);
     
-    const onChar = service.getCharacteristic(Characteristic.On);
-    if (!onChar) {
-      this.log.error(`[DEBUG] On characteristic not found for outlet ${outletIndex}`);
-      return;
-    }
-    
-    this.log.info(`[DEBUG] On characteristic found, attaching handlers for outlet ${outletIndex}`);
-    
-    // Verify handlers are attached after setup
-    const verifyHandlers = () => {
-      const getHandlers = onChar.listeners('get');
-      const setHandlers = onChar.listeners('set');
-      this.log.info(`[DEBUG] Outlet ${outletIndex} - After attaching handlers: get=${getHandlers.length}, set=${setHandlers.length}`);
-    };
-    
-    onChar
+    service.getCharacteristic(Characteristic.On)
       .on('get', async (callback) => {
         try {
           const outlet = await this.client.getOutlet(pduMac, outletIndex);
@@ -308,10 +246,8 @@ class UniFiPDUPlatform {
         }
       })
       .on('set', async (value, callback) => {
-        this.log.info(`[DEBUG] On characteristic set handler called for outlet ${outletIndex}, value: ${value}`);
         try {
           // Power cycle the outlet
-          this.log.info(`[DEBUG] Calling powerCycleOutlet for outlet ${outletIndex} on PDU ${pduMac}`);
           await this.client.powerCycleOutlet(pduMac, outletIndex);
           this.log.info(`Power cycled outlet ${outletIndex} on PDU ${pduMac}`);
           
@@ -330,176 +266,8 @@ class UniFiPDUPlatform {
           callback(null);
         } catch (error) {
           this.log.error(`Failed to power cycle outlet ${outletIndex} on PDU ${pduMac}: ${error.message}`);
-          this.log.error(`[DEBUG] Power cycle error stack: ${error.stack}`);
           callback(error);
         }
       });
-    
-    // Verify handlers were attached
-    verifyHandlers();
-  }
-  
-  setupPowerMonitoring(accessory, outletIndex, pduMac) {
-    try {
-      // Remove any old LightSensor services that might have been created for power monitoring
-      const lightSensorService = accessory.getService(Service.LightSensor);
-      if (lightSensorService && lightSensorService.subtype === 'power-monitoring') {
-        this.log.info(`Removing old LightSensor service for outlet ${outletIndex}`);
-        accessory.removeService(lightSensorService);
-      }
-      
-      // Also remove any service with the name "Power Monitoring" that isn't a Switch
-      const services = accessory.services.filter(s => s.displayName === 'Power Monitoring' && s.UUID !== Service.Switch.UUID);
-      services.forEach(service => {
-        this.log.info(`Removing old Power Monitoring service for outlet ${outletIndex}`);
-        accessory.removeService(service);
-      });
-      
-      // Add power monitoring characteristics directly to the Switch service
-      // This avoids creating a separate service that might be misinterpreted
-      const switchService = accessory.getService(Service.Switch);
-      if (!switchService) {
-        this.log.error(`Switch service not found for outlet ${outletIndex}`);
-        return;
-      }
-      
-      // Make sure we don't interfere with the On characteristic that's already set up
-      // Verify On characteristic exists and has handlers before adding power characteristics
-      const onChar = switchService.getCharacteristic(Characteristic.On);
-      if (!onChar) {
-        this.log.warn(`On characteristic not found for outlet ${outletIndex}, skipping power monitoring`);
-        return;
-      }
-      
-      // Check if On characteristic has get/set handlers (it should have been set up by setupOutletService)
-      const getHandlers = onChar.listeners('get');
-      const setHandlers = onChar.listeners('set');
-      this.log.info(`[DEBUG] Outlet ${outletIndex} - On characteristic handlers: get=${getHandlers.length}, set=${setHandlers.length}`);
-      
-      if (getHandlers.length === 0 || setHandlers.length === 0) {
-        this.log.warn(`On characteristic handlers not properly set up for outlet ${outletIndex}, skipping power monitoring`);
-        return;
-      }
-      
-      this.log.info(`[DEBUG] Adding power monitoring to outlet ${outletIndex} (On characteristic is properly configured)`);
-    
-    // Add Voltage (Volts) characteristic - Elgato Eve Energy UUID
-    // Format: UInt16, value = actual_voltage * 10
-    const VoltageUUID = 'E863F10A-079E-48FF-8F27-9C2605A29F52'; // Elgato Eve Energy Volt UUID
-    let voltageChar = switchService.getCharacteristic(VoltageUUID);
-    if (!voltageChar) {
-      voltageChar = switchService.addCharacteristic(
-        new Characteristic('Volt', VoltageUUID, {
-          format: Characteristic.Formats.UINT16,
-          unit: 'V',
-          minValue: 0,
-          maxValue: 2500, // 250V * 10
-          minStep: 1,
-          perms: [Characteristic.Perms.READ, Characteristic.Perms.NOTIFY]
-        })
-      );
-    }
-    
-    // Add Current (Amps) characteristic - Elgato Eve Energy UUID
-    // Format: UInt16, value = actual_current * 100
-    const CurrentUUID = 'E863F126-079E-48FF-8F27-9C2605A29F52'; // Elgato Eve Energy Ampere UUID
-    let currentChar = switchService.getCharacteristic(CurrentUUID);
-    if (!currentChar) {
-      currentChar = switchService.addCharacteristic(
-        new Characteristic('Ampere', CurrentUUID, {
-          format: Characteristic.Formats.UINT16,
-          unit: 'A',
-          minValue: 0,
-          maxValue: 2000, // 20A * 100
-          minStep: 1,
-          perms: [Characteristic.Perms.READ, Characteristic.Perms.NOTIFY]
-        })
-      );
-    }
-    
-    // Add Power (Watts) characteristic - Elgato Eve Energy UUID
-    // Format: UInt16, value = actual_power * 10
-    const PowerUUID = 'E863F10D-079E-48FF-8F27-9C2605A29F52'; // Elgato Eve Energy Watt UUID
-    let powerChar = switchService.getCharacteristic(PowerUUID);
-    if (!powerChar) {
-      powerChar = switchService.addCharacteristic(
-        new Characteristic('Watt', PowerUUID, {
-          format: Characteristic.Formats.UINT16,
-          unit: 'W',
-          minValue: 0,
-          maxValue: 20000, // 2000W * 10
-          minStep: 1,
-          perms: [Characteristic.Perms.READ, Characteristic.Perms.NOTIFY]
-        })
-      );
-    }
-    
-    // Setup get handlers for all power characteristics
-    // Convert values according to Elgato Eve Energy format:
-    // Voltage: actual_voltage * 10 (UInt16)
-    // Current: actual_current * 100 (UInt16)
-    // Power: actual_power * 10 (UInt16)
-    const updatePowerStats = async () => {
-      try {
-        const powerStats = await this.client.getOutletPowerStats(pduMac, outletIndex);
-        if (powerStats) {
-          // Convert to Elgato Eve format
-          voltageChar.updateValue(Math.round(powerStats.voltage * 10));
-          currentChar.updateValue(Math.round(powerStats.current * 100));
-          powerChar.updateValue(Math.round(powerStats.power * 10));
-        }
-      } catch (error) {
-        this.log.error(`Failed to update power stats for outlet ${outletIndex} on PDU ${pduMac}: ${error.message}`);
-      }
-    };
-    
-    voltageChar.on('get', async (callback) => {
-      try {
-        const powerStats = await this.client.getOutletPowerStats(pduMac, outletIndex);
-        // Convert voltage to Elgato Eve format: actual_voltage * 10
-        callback(null, powerStats ? Math.round(powerStats.voltage * 10) : 0);
-      } catch (error) {
-        this.log.error(`Failed to get voltage for outlet ${outletIndex}: ${error.message}`);
-        callback(error);
-      }
-    });
-    
-    currentChar.on('get', async (callback) => {
-      try {
-        const powerStats = await this.client.getOutletPowerStats(pduMac, outletIndex);
-        // Convert current to Elgato Eve format: actual_current * 100
-        callback(null, powerStats ? Math.round(powerStats.current * 100) : 0);
-      } catch (error) {
-        this.log.error(`Failed to get current for outlet ${outletIndex}: ${error.message}`);
-        callback(error);
-      }
-    });
-    
-    powerChar.on('get', async (callback) => {
-      try {
-        const powerStats = await this.client.getOutletPowerStats(pduMac, outletIndex);
-        // Convert power to Elgato Eve format: actual_power * 10
-        callback(null, powerStats ? Math.round(powerStats.power * 10) : 0);
-      } catch (error) {
-        this.log.error(`Failed to get power for outlet ${outletIndex}: ${error.message}`);
-        callback(error);
-      }
-    });
-    
-    // Update power stats periodically (every 30 seconds)
-    const updateInterval = setInterval(updatePowerStats, 30000);
-    
-    // Store interval ID on accessory for cleanup
-    if (!accessory._powerUpdateInterval) {
-      accessory._powerUpdateInterval = updateInterval;
-    }
-    
-    // Initial update
-    updatePowerStats();
-    } catch (error) {
-      this.log.error(`Failed to setup power monitoring for outlet ${outletIndex}: ${error.message}`);
-      this.log.error(error.stack);
-      // Don't throw - allow the outlet to work without power monitoring
-    }
   }
 }

@@ -193,9 +193,7 @@ class UniFiPDUClient {
    */
   async getOutlets(mac) {
     const deviceInfo = await this.getDeviceInfo(mac);
-    // Use outlet_table instead of outlet_overrides to get power monitoring capabilities
-    // outlet_table includes outlet_caps which indicates if power monitoring is supported
-    const outlets = deviceInfo.outlet_table || deviceInfo.outlet_overrides || [];
+    const outlets = deviceInfo.outlet_overrides || [];
     
     // Return outlets sorted by index
     return outlets.sort((a, b) => (a.index || 0) - (b.index || 0));
@@ -210,73 +208,6 @@ class UniFiPDUClient {
   async getOutlet(mac, outletIndex) {
     const outlets = await this.getOutlets(mac);
     return outlets.find(o => o.index === outletIndex) || null;
-  }
-  
-  /**
-   * Get outlet statistics (current, power, voltage, etc.)
-   * Power stats are available in outlet_table for outlets with outlet_caps >= 3
-   * Outlets with outlet_caps = 1 (USB outlets) don't have power monitoring
-   * @param {string} mac - Device MAC address
-   * @param {number} outletIndex - Outlet index (optional, if not provided returns all outlets)
-   * @returns {Promise<Object|Array>}
-   */
-  async getOutletStats(mac, outletIndex = null) {
-    await this.ensureAuth();
-    
-    // Get device info which contains outlet_table with power stats
-    const deviceInfo = await this.getDeviceInfo(mac);
-    
-    if (!deviceInfo.outlet_table || !Array.isArray(deviceInfo.outlet_table)) {
-      return outletIndex !== null ? null : [];
-    }
-    
-    let stats = deviceInfo.outlet_table;
-    
-    // Filter by outlet index if specified
-    if (outletIndex !== null) {
-      stats = stats.filter(s => s.index === outletIndex);
-      return stats.length > 0 ? stats[0] : null;
-    }
-    
-    return stats;
-  }
-  
-  /**
-   * Check if an outlet supports power monitoring
-   * @param {string} mac - Device MAC address
-   * @param {number} outletIndex - Outlet index
-   * @returns {Promise<boolean>}
-   */
-  async outletSupportsPowerMonitoring(mac, outletIndex) {
-    const outlet = await this.getOutletStats(mac, outletIndex);
-    if (!outlet) return false;
-    
-    // outlet_caps: 1 = basic outlet (no power monitoring)
-    // outlet_caps: 3 = smart outlet (has power monitoring)
-    return outlet.outlet_caps >= 3;
-  }
-  
-  /**
-   * Get power statistics for an outlet (voltage, current, power, power factor)
-   * Returns null if outlet doesn't support power monitoring
-   * @param {string} mac - Device MAC address
-   * @param {number} outletIndex - Outlet index
-   * @returns {Promise<Object|null>}
-   */
-  async getOutletPowerStats(mac, outletIndex) {
-    const outlet = await this.getOutletStats(mac, outletIndex);
-    if (!outlet || outlet.outlet_caps < 3) {
-      return null; // Outlet doesn't support power monitoring
-    }
-    
-    return {
-      voltage: parseFloat(outlet.outlet_voltage) || 0,
-      current: parseFloat(outlet.outlet_current) || 0,
-      power: parseFloat(outlet.outlet_power) || 0,
-      powerFactor: parseFloat(outlet.outlet_power_factor) || 0,
-      index: outlet.index,
-      name: outlet.name
-    };
   }
 }
 
